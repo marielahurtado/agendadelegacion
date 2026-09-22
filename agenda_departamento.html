@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda y Pendientes - Depto. de Arquitectura y Diseño | UNISON</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        unison: {
+                            600: '#003366', // Azul institucional principal
+                            700: '#002244', // Azul oscuro institucional
+                            accent: '#D99B00' // Dorado institucional
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col justify-between" x-data="agendaApp()">
+
+    <!-- Header Institucional -->
+    <header class="bg-unison-700 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-unison-accent text-unison-700 p-2.5 rounded-lg font-bold text-xl shadow">
+                    <i class="fa-solid fa-compass-drafting"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight">Agenda y Pendientes</h1>
+                    <p class="text-xs text-gray-200">Depto. de Arquitectura y Diseño · UNISON</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button @click="activeTab = 'agenda'" :class="activeTab === 'agenda' ? 'bg-unison-accent text-gray-900 font-semibold' : 'bg-unison-600 text-white hover:bg-unison-600/80'" class="px-4 py-2 rounded-lg text-xs transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-days"></i> Eventos
+                </button>
+                <button @click="activeTab = 'pendientes'" :class="activeTab === 'pendientes' ? 'bg-unison-accent text-gray-900 font-semibold' : 'bg-unison-600 text-white hover:bg-unison-600/80'" class="px-4 py-2 rounded-lg text-xs transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-list-check"></i> Pendientes <span class="bg-white/20 px-1.5 py-0.5 rounded-full text-[10px]" x-text="todos.filter(t => !t.completed).length">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <!-- VISTA DE EVENTOS -->
+        <div x-show="activeTab === 'agenda'" class="space-y-6">
+            
+            <!-- Barra de Acciones y Filtros de Eventos -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <span class="text-xs font-semibold text-gray-500 mr-1"><i class="fa-solid fa-filter"></i> Categoría:</span>
+                    <button @click="selectedCategory = 'Todos'" 
+                        :class="selectedCategory === 'Todos' ? 'bg-unison-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" 
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                        Todas
+                    </button>
+                    <template x-for="cat in categories" :key="cat">
+                        <button @click="selectedCategory = cat" 
+                            :class="selectedCategory === cat ? 'bg-unison-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" 
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                            x-text="cat">
+                        </button>
+                    </template>
+                </div>
+
+                <button @click="openEventModal = true" class="w-full sm:w-auto bg-unison-accent hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2 rounded-lg text-xs shadow transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Nuevo Evento
+                </button>
+            </div>
+
+            <!-- Listado Organizado por Mes -->
+            <div class="space-y-8">
+                <template x-for="monthGroup in groupedEvents" :key="monthGroup.monthName">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <!-- Cabecera del Mes -->
+                        <div class="bg-unison-600 text-white px-6 py-3 flex justify-between items-center">
+                            <h2 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-regular fa-calendar-days text-unison-accent"></i> <span x-text="monthGroup.monthName"></span>
+                            </h2>
+                            <span class="text-xs bg-white/10 px-2.5 py-1 rounded-full font-medium" x-text="monthGroup.events.length + (monthGroup.events.length === 1 ? ' evento' : ' eventos')"></span>
+                        </div>
+
+                        <!-- Lista de eventos del mes -->
+                        <div class="divide-y divide-gray-100">
+                            <template x-for="event in monthGroup.events" :key="event.id">
+                                <div class="p-5 hover:bg-gray-50/80 transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div class="space-y-1.5 flex-grow">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                                                  :class="getBadgeClass(event.category)"
+                                                  x-text="event.category"></span>
+                                            <span class="text-xs text-gray-500 font-medium flex items-center gap-1">
+                                                <i class="fa-regular fa-clock text-unison-600"></i> <span x-text="formatDateShort(event.date) + ' a las ' + event.time"></span>
+                                            </span>
+                                        </div>
+                                        <h3 class="text-base font-bold text-gray-900" x-text="event.title"></h3>
+                                        <p class="text-xs text-gray-600" x-text="event.description"></p>
+                                        <div class="flex items-center gap-4 text-xs text-gray-500 pt-1">
+                                            <span><i class="fa-solid fa-location-dot text-unison-600 mr-1"></i> <strong x-text="event.location"></strong></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 self-end md:self-center">
+                                        <button @click="deleteEvent(event.id)" class="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition text-xs" title="Eliminar evento">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="groupedEvents.length === 0">
+                    <div class="bg-white p-12 rounded-xl shadow-sm border border-gray-200 text-center">
+                        <div class="text-gray-300 text-4xl mb-3"><i class="fa-solid fa-calendar-xmark"></i></div>
+                        <h3 class="text-sm font-semibold text-gray-700">No hay eventos registrados en esta categoría</h3>
+                        <p class="text-xs text-gray-500 mt-1">Utiliza el botón "Nuevo Evento" para programar actividades.</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- VISTA DE PENDIENTES -->
+        <div x-show="activeTab === 'pendientes'" class="space-y-6" x-cloak>
+            
+            <!-- Barra para Agregar Pendiente -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <form @submit.prevent="addTodo" class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" x-model="newTodo.text" required placeholder="Escribir nuevo pendiente o tarea del departamento..." class="flex-grow border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600">
+                    <select x-model="newTodo.priority" class="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600 bg-white">
+                        <option value="Normal">Prioridad Normal</option>
+                        <option value="Urgente">Prioridad Urgente</option>
+                    </select>
+                    <button type="submit" class="bg-unison-600 hover:bg-unison-700 text-white font-semibold px-5 py-2 rounded-lg text-xs shadow transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Agregar Pendiente
+                    </button>
+                </form>
+            </div>
+
+            <!-- Listado de Pendientes -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="bg-unison-600 text-white px-6 py-3 flex justify-between items-center">
+                    <h2 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-unison-accent"></i> Tareas y Pendientes del Departamento
+                    </h2>
+                    <span class="text-xs bg-white/10 px-2.5 py-1 rounded-full font-medium" x-text="todos.filter(t => !t.completed).length + ' pendientes activos'"></span>
+                </div>
+
+                <div class="divide-y divide-gray-100">
+                    <template x-for="todo in sortedTodos" :key="todo.id">
+                        <div class="p-4 hover:bg-gray-50 transition flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 flex-grow">
+                                <input type="checkbox" @change="toggleTodo(todo.id)" :checked="todo.completed" class="w-4 h-4 text-unison-600 rounded border-gray-300 focus:ring-unison-600 cursor-pointer">
+                                <div>
+                                    <p class="text-xs sm:text-sm font-medium text-gray-800 transition" :class="todo.completed ? 'line-through text-gray-400' : ''" x-text="todo.text"></p>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-[10px] px-2 py-0.5 rounded font-semibold" 
+                                              :class="todo.priority === 'Urgente' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'" 
+                                              x-text="todo.priority"></span>
+                                        <span class="text-[10px] text-gray-400" x-text="'Agregado el ' + todo.date"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button @click="deleteTodo(todo.id)" class="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition text-xs" title="Eliminar pendiente">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </template>
+
+                    <template x-if="todos.length === 0">
+                        <div class="p-12 text-center text-gray-500">
+                            <div class="text-gray-300 text-4xl mb-3"><i class="fa-solid fa-clipboard-check"></i></div>
+                            <p class="text-xs">No hay pendientes registrados. ¡Todo al día!</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL: NUEVO EVENTO -->
+    <div x-show="openEventModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+        <div @click.outside="openEventModal = false" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all">
+            <div class="bg-unison-700 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-calendar-plus mr-2"></i> Registrar Nuevo Evento</h3>
+                <button @click="openEventModal = false" class="text-gray-200 hover:text-white text-base"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <form @submit.prevent="saveEvent" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Título del Evento *</label>
+                    <input type="text" x-model="newEvent.title" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600" placeholder="Ej. Sesión Ordinaria de Consejo">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Categoría *</label>
+                        <select x-model="newEvent.category" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600 bg-white">
+                            <template x-for="cat in categories" :key="cat">
+                                <option :value="cat" x-text="cat"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Lugar / Aula *</label>
+                        <input type="text" x-model="newEvent.location" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600" placeholder="Ej. Sala de Juntas DAD">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Fecha *</label>
+                        <input type="date" x-model="newEvent.date" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Hora *</label>
+                        <input type="time" x-model="newEvent.time" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Descripción corta</label>
+                    <textarea x-model="newEvent.description" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-unison-600" placeholder="Detalles u orden del día..."></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button type="button" @click="openEventModal = false" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-xs font-medium hover:bg-gray-50 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 rounded-lg bg-unison-600 hover:bg-unison-700 text-white text-xs font-medium shadow transition">Guardar Evento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer Institucional Correctamente Estructurado y Cerrado -->
+    <footer class="bg-unison-700 text-white py-6 mt-12 border-t border-unison-600">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-xs text-gray-300 gap-4">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-building-columns text-unison-accent"></i>
+                <span>Universidad de Sonora · Departamento de Arquitectura y Diseño</span>
+            </div>
+            <div>
+                <p>Sistema de Gestión Institucional</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Script de aplicación -->
+    <script>
+        function agendaApp() {
+            return {
+                activeTab: 'agenda',
+                openEventModal: false,
+                selectedCategory: 'Todos',
+                
+                categories: [
+                    'Reuniones de delegación',
+                    'Asamblea general',
+                    'Eventos',
+                    'Administración Universitaria'
+                ],
+
+                events: [
+                    {
+                        id: '1',
+                        title: 'Reunión Ordinaria de Delegación Sindical',
+                        category: 'Reuniones de delegación',
+                        date: '2026-06-12',
+                        time: '11:00',
+                        location: 'Sala Audiovisual DAD',
+                        description: 'Revisión de acuerdos sindicales y entrega de informes trimestrales.'
+                    },
+                    {
+                        id: '2',
+                        title: 'Asamblea General del Departamento',
+                        category: 'Asamblea general',
+                        date: '2026-06-20',
+                        time: '10:00',
+                        location: 'Auditorio Principal DAD',
+                        description: 'Convocatoria a todo el personal académico y administrativo para evaluación semestral.'
+                    },
+                    {
+                        id: '3',
+                        title: 'Inauguración de Muestra Estudiantil de Diseño',
+                        category: 'Eventos',
+                        date: '2026-07-05',
+                        time: '17:00',
+                        location: 'Vestíbulo DAD',
+                        description: 'Exhibición abierta al público de proyectos finales seleccionados.'
+                    },
+                    {
+                        id: '4',
+                        title: 'Entrega de Reportes de Carga Académica',
+                        category: 'Administración Universitaria',
+                        date: '2026-07-15',
+                        time: '15:00',
+                        location: 'Jefatura de Departamento',
+                        description: 'Recepción de documentación para el siguiente ciclo escolar.'
+                    }
+                ],
+
+                todos: [
+                    {
+                        id: 't1',
+                        text: 'Enviar formato de solicitudes de equipo de cómputo a Rectoría',
+                        priority: 'Urgente',
+                        completed: false,
+                        date: '08/06/2026'
+                    },
+                    {
+                        id: 't2',
+                        text: 'Actualizar calendario de exámenes extraordinarios en portal web',
+                        priority: 'Normal',
+                        completed: true,
+                        date: '05/06/2026'
+                    },
+                    {
+                        id: 't3',
+                        text: 'Revisar solicitudes de dictamen técnico de laboratorios',
+                        priority: 'Urgente',
+                        completed: false,
+                        date: '10/06/2026'
+                    }
+                ],
+
+                newEvent: {
+                    title: '',
+                    category: 'Reuniones de delegación',
+                    date: '',
+                    time: '10:00',
+                    location: '',
+                    description: ''
+                },
+
+                newTodo: {
+                    text: '',
+                    priority: 'Normal'
+                },
+
+                init() {
+                    const savedEvents = localStorage.getItem('unison_dad_events_v3');
+                    if (savedEvents) {
+                        try { this.events = JSON.parse(savedEvents); } catch(e) {}
+                    }
+                    const savedTodos = localStorage.getItem('unison_dad_todos_v3');
+                    if (savedTodos) {
+                        try { this.todos = JSON.parse(savedTodos); } catch(e) {}
+                    }
+                },
+
+                saveEvents() {
+                    localStorage.setItem('unison_dad_events_v3', JSON.stringify(this.events));
+                },
+
+                saveTodos() {
+                    localStorage.setItem('unison_dad_todos_v3', JSON.stringify(this.todos));
+                },
+
+                getBadgeClass(cat) {
+                    switch(cat) {
+                        case 'Reuniones de delegación': return 'bg-blue-100 text-blue-800';
+                        case 'Asamblea general': return 'bg-purple-100 text-purple-800';
+                        case 'Eventos': return 'bg-amber-100 text-amber-800';
+                        case 'Administración Universitaria': return 'bg-emerald-100 text-emerald-800';
+                        default: return 'bg-gray-100 text-gray-800';
+                    }
+                },
+
+                formatDateShort(dateStr) {
+                    if (!dateStr) return '';
+                    const [y, m, d] = dateStr.split('-');
+                    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                    return `${d} de ${months[parseInt(m)-1]} ${y}`;
+                },
+
+                get groupedEvents() {
+                    let filtered = this.events;
+                    if (this.selectedCategory !== 'Todos') {
+                        filtered = this.events.filter(e => e.category === this.selectedCategory);
+                    }
+
+                    // Ordenar por fecha
+                    filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                    // Agrupar por mes y año
+                    const groupsMap = {};
+                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+                    filtered.forEach(ev => {
+                        if (!ev.date) return;
+                        const [y, m] = ev.date.split('-');
+                        const monthName = `${monthNames[parseInt(m)-1]} ${y}`;
+                        if (!groupsMap[monthName]) {
+                            groupsMap[monthName] = [];
+                        }
+                        groupsMap[monthName].push(ev);
+                    });
+
+                    return Object.keys(groupsMap).map(monthName => ({
+                        monthName,
+                        events: groupsMap[monthName]
+                    }));
+                },
+
+                get sortedTodos() {
+                    return [...this.todos].sort((a, b) => b.completed - a.completed);
+                },
+
+                saveEvent() {
+                    const item = {
+                        id: Date.now().toString(),
+                        ...this.newEvent
+                    };
+                    this.events.push(item);
+                    this.saveEvents();
+                    this.openEventModal = false;
+                    this.newEvent = { title: '', category: 'Reuniones de delegación', date: '', time: '10:00', location: '', description: '' };
+                },
+
+                deleteEvent(id) {
+                    if (confirm('¿Desea eliminar este evento de la agenda?')) {
+                        this.events = this.events.filter(e => e.id !== id);
+                        this.saveEvents();
+                    }
+                },
+
+                addTodo() {
+                    const item = {
+                        id: Date.now().toString(),
+                        text: this.newTodo.text,
+                        priority: this.newTodo.priority,
+                        completed: false,
+                        date: new Date().toLocaleDateString('es-MX')
+                    };
+                    this.todos.unshift(item);
+                    this.saveTodos();
+                    this.newTodo.text = '';
+                    this.newTodo.priority = 'Normal';
+                },
+
+                toggleTodo(id) {
+                    const t = this.todos.find(item => item.id === id);
+                    if (t) {
+                        t.completed = !t.completed;
+                        this.saveTodos();
+                    }
+                },
+
+                deleteTodo(id) {
+                    this.todos = this.todos.filter(t => t.id !== id);
+                    this.saveTodos();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
